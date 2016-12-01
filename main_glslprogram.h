@@ -31,7 +31,6 @@
 #define GL_COMPUTE_SHADER    0x91B9
 #endif
 
-
 inline int GetOSU(int flag) {
     int i;
     glGetIntegerv(flag, &i);
@@ -90,6 +89,7 @@ public:
     GLSLProgram();
 
     bool Create(char *, char * = NULL, char * = NULL, char * = NULL, char * = NULL, char * = NULL);
+    bool Create2(char *, ...);
 
     void DispatchCompute(GLuint, GLuint = 1, GLuint = 1);
 

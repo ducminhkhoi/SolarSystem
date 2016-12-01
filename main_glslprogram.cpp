@@ -1,4 +1,5 @@
 #include "main_glslprogram.h"
+#include "shaders.cpp"
 
 #define NVIDIA_SHADER_BINARY	0x00008e21		// nvidia binary enum
 
@@ -88,6 +89,212 @@ bool
 GLSLProgram::Create( char *file0, char *file1, char *file2, char *file3, char * file4, char *file5 )
 {
 	return CreateHelper( file0, file1, file2, file3, file4, file5, NULL );
+}
+
+bool
+GLSLProgram::Create2( char *file0, ...  )
+{
+    GLsizei n = 0;
+    GLchar *buf;
+    Valid = true;
+
+    IncludeGstap = false;
+    Cshader = Vshader = TCshader = TEshader = Gshader = Fshader = 0;
+    Program = 0;
+    AttributeLocs.clear();
+    UniformLocs.clear();
+
+    if( Program == 0 )
+    {
+        Program = glCreateProgram( );
+        CheckGlErrors( "glCreateProgram" );
+    }
+
+    va_list args;
+    va_start( args, file0 );
+
+    char *file = file0;
+    int type;
+    while( file != NULL )
+    {
+        int maxBinaryTypes = sizeof(BinaryTypes) / sizeof(struct GLbinarytype);
+        type = -1;
+        char *extension = GetExtension( file );
+        // fprintf( stderr, "File = '%s', extension = '%s'\n", file, extension );
+
+        int maxShaderTypes = sizeof(ShaderTypes) / sizeof(struct GLshadertype);
+        for( int i = 0; i < maxShaderTypes; i++ )
+        {
+            if( strcmp( extension, ShaderTypes[i].extension ) == 0 )
+            {
+                // fprintf( stderr, "Legal extension = '%s'\n", extension );
+                type = i;
+                break;
+            }
+        }
+
+        GLuint shader;
+        bool SkipToNextVararg = false;
+
+        if( ! SkipToNextVararg )
+        {
+            switch( ShaderTypes[type].name )
+            {
+                case GL_VERTEX_SHADER:
+                    if( ! CanDoVertexShaders )
+                    {
+                        fprintf( stderr, "Warning: this system cannot handle vertex shaders\n" );
+                        Valid = false;
+                        SkipToNextVararg = true;
+                    }
+                    else
+                    {
+                        shader = glCreateShader( GL_VERTEX_SHADER );
+                    }
+                    break;
+
+
+                case GL_FRAGMENT_SHADER:
+                    if( ! CanDoFragmentShaders )
+                    {
+                        fprintf( stderr, "Warning: this system cannot handle fragment shaders\n" );
+                        Valid = false;
+                        SkipToNextVararg = true;
+                    }
+                    else
+                    {
+                        shader = glCreateShader( GL_FRAGMENT_SHADER );
+                    }
+                    break;
+            }
+        }
+
+        // read the shader source into a buffer:
+
+        if( ! SkipToNextVararg )
+        {
+            FILE * logfile;
+
+            if( ! SkipToNextVararg )
+            {
+                if (type == 1)
+                    buf = (char*) vertex_shader.c_str();
+                else
+                    buf = (char*) fragment_shader.c_str();
+
+                GLchar *strings[2];
+                int n = 0;
+
+                if( IncludeGstap )
+                {
+                    strings[n] = Gstap;
+                    n++;
+                }
+
+                strings[n] = buf;
+                n++;
+
+                // Tell GL about the source:
+
+                glShaderSource( shader, n, (const GLchar **)strings, NULL );
+                delete [ ] buf;
+                CheckGlErrors( "Shader Source" );
+
+                // compile:
+
+                glCompileShader( shader );
+                GLint infoLogLen;
+                GLint compileStatus;
+                CheckGlErrors( "CompileShader:" );
+                glGetShaderiv( shader, GL_COMPILE_STATUS, &compileStatus );
+
+                if( compileStatus == 0 )
+                {
+                    fprintf( stderr, "Shader '%s' did not compile.\n", file );
+                    glGetShaderiv( shader, GL_INFO_LOG_LENGTH, &infoLogLen );
+                    if( infoLogLen > 0 )
+                    {
+                        GLchar *infoLog = new GLchar[infoLogLen+1];
+                        glGetShaderInfoLog( shader, infoLogLen, NULL, infoLog);
+                        infoLog[infoLogLen] = '\0';
+                        logfile = fopen( "glsllog.txt", "w");
+                        if( logfile != NULL )
+                        {
+                            fprintf( logfile, "\n%s\n", infoLog );
+                            fclose( logfile );
+                        }
+                        fprintf( stderr, "\n%s\n", infoLog );
+                        delete [ ] infoLog;
+                    }
+                    glDeleteShader( shader );
+                    Valid = false;
+                }
+                else
+                {
+                    if( Verbose )
+                        fprintf( stderr, "Shader '%s' compiled.\n", file );
+
+                    glAttachShader( this->Program, shader );
+                }
+            }
+        }
+
+        // go to the next vararg file:
+
+        file = va_arg( args, char * );
+    }
+
+    va_end( args );
+
+    // link the entire shader program:
+
+    glLinkProgram( Program );
+    CheckGlErrors( "Link Shader 1");
+
+    GLchar* infoLog;
+    GLint infoLogLen;
+    GLint linkStatus;
+    glGetProgramiv( this->Program, GL_LINK_STATUS, &linkStatus );
+    CheckGlErrors("Link Shader 2");
+
+    if( linkStatus == 0 )
+    {
+        glGetProgramiv( this->Program, GL_INFO_LOG_LENGTH, &infoLogLen );
+        fprintf( stderr, "Failed to link program -- Info Log Length = %d\n", infoLogLen );
+        if( infoLogLen > 0 )
+        {
+            infoLog = new GLchar[infoLogLen+1];
+            glGetProgramInfoLog( this->Program, infoLogLen, NULL, infoLog );
+            infoLog[infoLogLen] = '\0';
+            fprintf( stderr, "Info Log:\n%s\n", infoLog );
+            delete [ ] infoLog;
+
+        }
+        glDeleteProgram( Program );
+        Valid = false;
+    }
+    else
+    {
+        if( Verbose )
+            fprintf( stderr, "Shader Program linked.\n" );
+        // validate the program:
+
+        GLint status;
+        glValidateProgram( Program );
+        glGetProgramiv( Program, GL_VALIDATE_STATUS, &status );
+        if( status == GL_FALSE )
+        {
+            fprintf( stderr, "Program is invalid.\n" );
+            Valid = false;
+        }
+        else
+        {
+            if( Verbose )
+                fprintf( stderr, "Shader Program validated.\n" );
+        }
+    }
+
+    return Valid;
 }
 
 

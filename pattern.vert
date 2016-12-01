@@ -11,9 +11,6 @@ varying float angle;
 varying vec3 vN;
 varying vec3 vL;
 varying vec3 vE;
-varying float d;
-varying float d2;
-varying float d3;
 
 void main( )
 {
@@ -26,9 +23,6 @@ void main( )
     vec3 center_to_light = normalize(LIGHTPOSITION - center);
     vec3 center_to_vertex = normalize(vertex - center);
     angle = acos(dot(center_to_light, center_to_vertex));
-    d = distance(LIGHTPOSITION, center);
-    d2 = distance(vertex, center);
-    d3 = distance(gl_Vertex.xyz, vec3(0,0,0));
 
     vec4 ECposition = gl_ModelViewMatrix * gl_Vertex;
     vN = normalize( gl_NormalMatrix * gl_Normal );

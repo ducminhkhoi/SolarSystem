@@ -32,7 +32,6 @@ using namespace std;
 #include "main_glslprogram.h"
 #include "main_obj.h"
 
-
 //	This is a sample OpenGL / GLUT program
 //
 //	The objective is to draw a 3d object and change the color of the axes
@@ -210,22 +209,21 @@ int ScaleOrbitOn;               // object will rotate or not
 int MainWindow;                // window id for main graphics window
 float Scale;                    // scaling factor
 int WhichColor;                // index into Colors[ ]
-int WhichProjection;        // ORTHO or PERSP
-int WhichView;              // OUTSIDE or INSIDE
 int ScaleDiameterOn;            // NEAREST or LINEAR
 int Xmouse, Ymouse;            // mouse values
 float Xrot, Yrot;                // rotation angles in degrees
 float Time;                   // Global variable
 int PlaySound;
+int Voyage;
+int isDoingVoyage;
 int isPlayingSound;
 int ShowInstructions;
-
+int ViewFrom;
 int show_planet_names;
 bool Freeze;
-bool Light0On, Light1On, Light2On;
 GLuint mercury, earth_day, earth_night, jupiter, saturn_ring, uranus_ring, pluto,
         mars, moon, neptune, saturn, sun, uranus, venus, stars; //
-GLuint sun_list, mercury_list, venus_list, earth_list, moon_list, mars_list,
+GLuint sun_list, mercury_list, venus_list, moon_list, mars_list,
         jupiter_list, saturn_list, uranus_list, neptune_list, pluto_list;
 
 float cam_x, cam_y, cam_z;
@@ -267,12 +265,6 @@ void Animate();
 
 void Display();
 
-void DoAxesMenu(int);
-
-void DoColorMenu(int);
-
-void DoDepthMenu(int);
-
 void DoDebugMenu(int);
 
 void DoMainMenu(int);
@@ -280,6 +272,8 @@ void DoMainMenu(int);
 void DoProjectMenu(int);
 
 void ShowInstructionsMenu(int);
+
+void ShowInfoMenu(int);
 
 void DoTextureMenu(int);
 
@@ -354,9 +348,12 @@ void ScaleView();
 
 void WriteInstruction();
 
+void AdjustParam();
+
 #include "sphere.cpp"
 #include "SOIL.h"
 #include "bmptotexture.cpp"
+#include "Info.cpp"
 #include <glm/vec3.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -367,7 +364,8 @@ void WriteInstruction();
 
 
 time_t PlayingTime;
-
+time_t StartTime;
+bool fullscreen = true;
 using namespace std;
 // main program:
 
@@ -408,9 +406,11 @@ main(int argc, char *argv[]) {
         system("afplay audio.mp3 &");
         isPlayingSound = 1;
         PlayingTime = time(NULL);
+        StartTime = time(NULL);
     }
 
-    glutFullScreen();
+    if (fullscreen)
+        glutFullScreen();
     glutSetWindow(MainWindow);
     glutMainLoop();
 
@@ -475,11 +475,13 @@ Display() {
 
     GLsizei vx = glutGet(GLUT_WINDOW_WIDTH);
     GLsizei vy = glutGet(GLUT_WINDOW_HEIGHT);
-//    GLsizei v = vx < vy ? vx : vy;            // minimum dimension
-//    GLint xl = (vx - v) / 2;
-//    GLint yb = (vy - v) / 2;
-//    glViewport(xl, yb, v, v);
-    glViewport(0, 0, vx, vy);
+    GLsizei v = vx < vy ? vx : vy;            // minimum dimension
+    GLint xl = (vx - v) / 2;
+    GLint yb = (vy - v) / 2;
+    if (fullscreen)
+        glViewport(0, 0, vx, vy);
+    else
+        glViewport(xl, yb, v, v);
 
     // set the viewing volume:
     // remember that the Z clipping  values are actually
@@ -488,12 +490,10 @@ Display() {
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    if (WhichProjection == ORTHO)
-        glOrtho(-3., 3., -3., 3., 0.1, 1000.);
-    else {
+    if (fullscreen)
         gluPerspective(90., vx * 1.f / vy, 0.1, 1000.);
-//        gluPerspective(90., 1., 0.1, 1000.);
-    }
+    else
+        gluPerspective(90., 1., 0.1, 1000.);
 
 
     // place the objects into the scene:
@@ -503,19 +503,17 @@ Display() {
 
 
     // set the eye position, look-at position, and up-vector:
-    if (WhichView == 9) {
+    if (ViewFrom == 19) {
         if (ScaleOrbitOn) {
             gluLookAt(-5., 25., 25., 0., 0., 0., 0, 1., 0.);
         } else {
             gluLookAt(-10., 60., 60., 0., 0., 0., 0, 1., 0.);
         }
 
-    }
-    else if (WhichView == 8)
+    } else if (ViewFrom == 18)
         gluLookAt(0., 1., 6., 0., 0., 0., 0, 1., 0.);
     else
         gluLookAt(cam_x, cam_y, cam_z, target_x, target_y, target_z, 0, 1., 0.);
-
     // rotate the scene:
 
     glRotatef((GLfloat) Yrot, 0., 1., 0.);
@@ -559,7 +557,6 @@ Display() {
     // Main Drawing going here
     // draw the current object:
 
-
     if (DebugOn) {
         fprintf(stderr, "orbtial_speed_constant=%f\tself_rotate_speed=%f\n", orbital_speed_constant, self_rotate_speed);
     }
@@ -576,6 +573,57 @@ Display() {
         PlayingTime = current_time;
     }
 
+    if (Voyage == 1){
+        if (isDoingVoyage == 0) { // Start if not run
+            isDoingVoyage = 1;
+            StartTime = current_time;
+            ViewFrom = 19;
+        } else if (current_time - StartTime > 5 && ViewFrom == 19){ // Move to different Inner view
+            ViewFrom = 18;
+        } else if (current_time - StartTime > 10 && ViewFrom == 18){
+            ViewFrom = 1;
+        } else if (current_time - StartTime > 20 && ViewFrom == 1){
+            ViewFrom = 2;
+        } else if (current_time - StartTime > 30 && ViewFrom == 2){
+            ViewFrom = 3;
+        } else if (current_time - StartTime > 40 && ViewFrom == 3){
+            ViewFrom = 4;
+        } else if (current_time - StartTime > 50 && ViewFrom == 4){
+            ViewFrom = 11;
+        } else if (current_time - StartTime > 60 && ViewFrom == 11){
+            ViewFrom = 5;
+        } else if (current_time - StartTime > 70 && ViewFrom == 5){
+            ViewFrom = 6;
+        } else if (current_time - StartTime > 80 && ViewFrom == 6){
+            ViewFrom = 7;
+        } else if (current_time - StartTime > 90 && ViewFrom == 7){
+            ViewFrom = 8;
+        } else if (current_time - StartTime > 100 && ViewFrom == 8){
+            ViewFrom = 9;
+        } else if (current_time - StartTime > 110 && ViewFrom == 9){
+            ViewFrom = 10;
+        } else if (current_time - StartTime > 120 && ViewFrom == 10){
+            ViewFrom = 12;
+        } else if (current_time - StartTime > 130 && ViewFrom == 12){
+            ViewFrom = 13;
+        } else if (current_time - StartTime > 140 && ViewFrom == 13){
+            ViewFrom = 15;
+        } else if (current_time - StartTime > 150 && ViewFrom == 15){
+            ViewFrom = 14;
+        } else if (current_time - StartTime > 160 && ViewFrom == 14){
+            ViewFrom = 16;
+        } else if (current_time - StartTime > 170 && ViewFrom == 16){
+            ViewFrom = 17;
+        } else if (current_time - StartTime > 180 && ViewFrom == 17){
+            ViewFrom = 18;
+            isDoingVoyage = 0;
+            Voyage = 0;
+        }
+
+        AdjustParam();
+
+    }
+
 
     ScaleView();
 
@@ -589,12 +637,23 @@ Display() {
     glutSwapBuffers();
 
 
-    // be sure the graphics buffer has been sent:
+    // be sure the graphics buffer has been shent:
     // note: be sure to use glFlush( ) here, not glFinish( ) !
 
     glFlush();
 
 
+}
+
+void AdjustParam(){
+    if (ViewFrom < 13){ // Info View
+        orbital_speed_constant = 0;
+    } else if (ViewFrom == 14 || ViewFrom == 15){ //Moon View and Earth View
+        orbital_speed_constant = 10;
+        self_rotate_speed = 10;
+    } else {
+        orbital_speed_constant = 100;
+    }
 }
 
 void WriteInstruction(){
@@ -604,45 +663,115 @@ void WriteInstruction(){
     gluOrtho2D( 0., 100.,     0., 100. );
     glMatrixMode( GL_MODELVIEW );
     glLoadIdentity( );
-    glColor3f( 1., 1., 1. );
 
-    if (ShowInstructions) {
-        string texts[27] = {"------INSTRUCTIONS------",
-                            "Left Click for adjust View",
-                            "Right Click for more options",
-                            "Middle Click for zoom in/out",
-                            "KEY_LEFT for decrease self rotate speed",
-                            "KEY_RIGHT for increase self rotate speed",
-                            "KEY_UP for decrease orbital speed",
-                            "KEY_DOWN for increase orbital speed",
-                            "Press 'h' for hide this instructions",
-                            "Press 'q' for quit",
-                            "Press 'o' for toggle Scale Orbit or not",
-                            "Press 'd' for toggle Scale Diameter or not",
-                            "Press 'b' for toggle Show Planets' orbits",
-                            "Press 'n' for toggle Show Planets' names",
-                            "Press 'f' for freeze animation",
-                            "Press 'r' for reset View",
-                            "Press 's' for toggle Playing sound",
-                            "Press '0' for view from Sun",
-                            "Press '1' for view from Earth",
-                            "Press '2' for view from Moon",
-                            "Press '3' for view from Jupiter",
-                            "Press '4' for view from Saturn",
-                            "Press '5' for view from Neptune",
-                            "Press '6' for view from Pluto",
-                            "Press '7' for view from Comet",
-                            "Press '8' for view from Closer View",
-                            "Press '9' for view from Overall View",
-        };
-        for (int i = 0; i < 27; i++) {
-            DoRasterString2(1., 1.55 * (27 - i), 0., (char *) texts[i].c_str());
-        }
+    glColor3f(1., 1., 1.);
+
+    int length;
+    string *text;
+
+    if (isDoingVoyage) {
+        length = info_length;
+        text = info_string;
     } else {
-        DoRasterString2(1., 5, 0., "Click Screen and Press 'h' for instructions");
+        if (ShowInstructions) {
+            length = instructions_length;
+            text = instructions;
+        } else {
+            length = info_2_length;
+            text = info_2_string;
+        }
     }
-}
 
+
+    for (int i = 0; i < length; i++) {
+        DoRasterString2(1., 1.8 * (length - i), 0., (char *) text[i].c_str());
+    }
+
+    switch (ViewFrom) {
+        case 1:
+            length = sun_info_length;
+            text = sun_info;
+            break;
+        case 2:
+            length = mercury_info_length;
+            text = mercury_info;
+            break;
+        case 3:
+            length = venus_info_length;
+            text = venus_info;
+            break;
+        case 4:
+            length = earth_info_length;
+            text = earth_info;
+            break;
+        case 5:
+            length = mars_info_length;
+            text = mars_info;
+            break;
+        case 6:
+            length = jupiter_info_length;
+            text = jupiter_info;
+            break;
+        case 7:
+            length = saturn_info_length;
+            text = saturn_info;
+            break;
+        case 8:
+            length = uranus_info_length;
+            text = uranus_info;
+            break;
+        case 9:
+            length = neptune_info_length;
+            text = neptune_info;
+            break;
+        case 10:
+            length = pluto_info_length;
+            text = pluto_info;
+            break;
+        case 11:
+            length = moon_info_length;
+            text = moon_info;
+            break;
+        case 12:
+            length = comet_info_length;
+            text = comet_info;
+            break;
+        case 13:
+            length = view_from_13_length;
+            text = view_from_13;
+            break;
+        case 14:
+            length = view_from_14_length;
+            text = view_from_14;
+            break;
+        case 15:
+            length = view_from_15_length;
+            text = view_from_15;
+            break;
+        case 16:
+            length = view_from_16_length;
+            text = view_from_16;
+            break;
+        case 17:
+            length = view_from_17_length;
+            text = view_from_17;
+            break;
+        case 18:
+            length = view_from_18_length;
+            text = view_from_18;
+            break;
+        case 19:
+            length = view_from_19_length;
+            text = view_from_19;
+            break;
+    }
+
+    for (int i = 0; i < length; i++) {
+        DoRasterString2(100 - 25., 1.8 * (length - i), 0., (char *) text[i].c_str());
+    }
+
+    glEnable(GL_DEPTH_TEST);
+}
 
 void ScaleView(){
     if (ScaleDiameterOn == 1) {
@@ -724,7 +853,7 @@ void write_text(char * text){
 
 void Transform(string planet, glm::mat4 &modelMatrix){
 
-    if (planet == "comet"){
+    if (planet == "comet") {
         modelMatrix = glm::scale(modelMatrix, glm::vec3(1., 1., 0.5));
         modelMatrix = glm::rotate(modelMatrix, D2R * 20.f, glm::vec3(0., 0., -1.));
 
@@ -732,15 +861,13 @@ void Transform(string planet, glm::mat4 &modelMatrix){
         glScalef(1., 1., 0.5);
         glRotatef(20, 0, 0, -1.);
 
-        if (ScaleOrbitOn == 1){
+        if (ScaleOrbitOn == 1) {
             modelMatrix = glm::translate(modelMatrix, glm::vec3(-5, 0., 0.));
             glTranslatef(-5, 0., 0.);
         } else {
             modelMatrix = glm::translate(modelMatrix, glm::vec3(-1, 0., 0.));
             glTranslatef(-1, 0., 0.);
         }
-
-
     } else {
 
         modelMatrix = glm::scale(modelMatrix, glm::vec3(1., 1., 0.8));
@@ -843,10 +970,11 @@ void DrawImage(void) {
 
 void DrawRing(GLuint texture, float radius1, float radius2){
     glPushMatrix();
+    Pattern->SetUniformVariable("planet", 14);
     set_texture(texture, texture);
     int num_segments = 100;
     if (texture == uranus_ring){
-        glRotatef(90, 1., 0., 0.);
+        glRotatef(90, 0., 0., 1.);
     } else {
         glRotatef(-20, 1., 0., 0.);
     }
@@ -884,42 +1012,71 @@ void DrawRing(GLuint texture, float radius1, float radius2){
     glPopMatrix();
 }
 
-void PutCamera(glm::mat4 modelMatrix, string planet){
-//    printf("%s\n", glm::to_string(modelMatrix).c_str() ) ;
-    glDisable(GL_DEPTH_TEST);
-
+void PutCamera(glm::mat4 modelMatrix){
     // case for jupiter, saturn, neptune, pluto
-    glm::vec4 cam(-.2, 0., -.2, 1.);
-    glm::vec4 target(0, 0, 0, 0.);
+    glm::vec4 cam;
+    glm::vec4 target;
 
-    if (planet == "moon"){
-        cam = glm::vec4(-.2, 0., 0., 1.);
-        target = glm::vec4(-.4, 0, 0, 1.);
-    } else if (planet == "earth" || planet == "sun"){
-        cam = glm::vec4(.2, 0., 0., 1.);
-        target = glm::vec4(.4, 0, 0, 1.);
-    } else if (planet == "comet"){
-        cam = glm::vec4(5., 5., 5., 1.);
-        target = glm::vec4(.0, 0, 0, 1.);
+    switch (ViewFrom){
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+            cam = glm::vec4(-0.55, 0., 0, 1.);
+            target = glm::vec4(0, 0, 0, 1.);
+            break;
+        case 10:
+            cam = glm::vec4(-.8, 0., 0, 1.);
+            target = glm::vec4(0, 0, 0, 1.);
+            break;
+        case 11:
+            cam = glm::vec4(-.6, 0., 0, 1.);
+            target = glm::vec4(0, 0, 0, 1.);
+            break;
+        case 12:
+            cam = glm::vec4(-3, 3, -3, 1.);
+            target = glm::vec4(0, 0, 0, 1.);
+            break;
+        case 14:
+            cam = glm::vec4(-.2, 0., 0., 1.);
+            target = glm::vec4(-.4, 0, 0, 1.);
+            break;
+        case 13:
+        case 15:
+            cam = glm::vec4(.2, 0., 0., 1.);
+            target = glm::vec4(.4, 0, 0, 1.);
+            break;
+        case 16:
+            cam = glm::vec4(.3, .2, -.3, 1.);
+            target = glm::vec4(0, 0, 0, 1.);
+            break;
+        case 17:
+            cam = glm::vec4(5., 5., 5., 1.);
+            target = glm::vec4(0., 0., 0., 1.);
+            break;
+        case 18:
+            break;
+        case 19:
+            break;
     }
 
     cam = modelMatrix * cam;
+    if (ViewFrom != 16){
+        target = modelMatrix * target;
+    }
 
     cam_x = cam.x; cam_y = cam.y; cam_z = cam.z;
-
-    target = modelMatrix * target;
-
     target_x = target.x; target_y = target.y; target_z = target.z;
-
-//    DoRasterString(cam_x, cam_y, cam_z, "X");
-//    DoRasterString(target_x, target_y, target_z, "O");
 
     if (DebugOn){
         fprintf(stderr, "cam(x,y,z) = (%f,%f,%f)\ttarget(x,y,z)=(%f,%f,%f)\n",
                 cam_x, cam_y, cam_z, target_x, target_y, target_z);
     }
-    glEnable(GL_DEPTH_TEST);
-
 }
 
 
@@ -938,6 +1095,7 @@ void DrawObjects() {
 
     Pattern->Use();
 
+    Pattern->SetUniformVariable("planet", 13);
     DrawImage();
     glm::mat4 modelMatrix = glm::mat4(1.f);// Store the model matrix
     glm::mat4 mattemp = glm::mat4(1.f);
@@ -964,13 +1122,16 @@ void DrawObjects() {
 
             glRotatef(Time * 360 * self_rotate_speed, 0., 1., 0.);
 
-            if (WhichView == 1){
-                PutCamera(modelMatrix2, "earth");
+            if (ViewFrom == 15){
+                PutCamera(modelMatrix2);
+            } else if (ViewFrom == 4){
+                PutCamera(modelMatrix1);
             }
 
             Pattern->SetUniformVariable("uTime", Time);
             Pattern->SetUniformVariable("earth_day_tex", 0);
             Pattern->SetUniformVariable("earth_night_tex", 1);
+            Pattern->SetUniformVariable("planet", 4);
 
             set_texture(earth_day, earth_night);
 
@@ -992,11 +1153,13 @@ void DrawObjects() {
             glTranslatef(moon_orbital_radius, 0., 0.);
             write_text("Moon");
             glScalef(moon_diameter, moon_diameter, moon_diameter);
+            glRotatef(Time * 360 * self_rotate_speed/27., 0., 1., 0.);
 
-            if (WhichView == 2){
-                PutCamera(modelMatrix2, "moon");
+            if (ViewFrom == 11 || ViewFrom == 14){
+                PutCamera(modelMatrix2);
             }
 
+            Pattern->SetUniformVariable("planet", 11);
             set_texture(moon, moon);
             glCallList(moon_list);
         }
@@ -1011,12 +1174,11 @@ void DrawObjects() {
     {
         glm::mat4 modelMatrix1 = modelMatrix;
 
-        modelMatrix1 = glm::rotate(modelMatrix1, -D2R*Time * 360 * self_rotate_speed/5.f, glm::vec3(0,-1,0));
-
+        modelMatrix1 = glm::rotate(modelMatrix1, -D2R*Time * 360 * self_rotate_speed/25.f, glm::vec3(0,-1,0));
 
         glDisable(GL_LIGHTING);
 
-        glRotatef(Time * 360 * self_rotate_speed/5., 0., 1., 0.);
+        glRotatef(Time * 360 * self_rotate_speed/25., 0., 1., 0.);
         write_text("Sun");
 
         if (ScaleOrbitOn == 1) {
@@ -1027,10 +1189,11 @@ void DrawObjects() {
             glScalef(2., 2., 2.);
         }
 
-        if (WhichView == 0) {
-            PutCamera(modelMatrix1, "sun");
+        if (ViewFrom == 1 || ViewFrom == 13){
+            PutCamera(modelMatrix1);
         }
 
+        Pattern->SetUniformVariable("planet", 1);
         set_texture(sun, sun);
 
         glCallList(sun_list);
@@ -1043,13 +1206,24 @@ void DrawObjects() {
     //Draw Mercury
     glPushMatrix();
     {
-        Transform("mercury", mattemp);
+        glm::mat4 modelMatrix1 = modelMatrix;
+        Transform("mercury", modelMatrix1);
+
+        modelMatrix1 = glm::rotate(modelMatrix1, D2R*orbital_speed(mercury_orbital_radius), glm::vec3(0., 1., 0.));
+        modelMatrix1 = glm::translate(modelMatrix1, glm::vec3(orbit_radius_const*mercury_orbital_radius, 0., 0.));
+        modelMatrix1 = glm::scale(modelMatrix1, glm::vec3(mercury_diameter));
+
         glRotatef(orbital_speed(mercury_orbital_radius), 0., 1., 0.);
         glTranslatef(orbit_radius_const*mercury_orbital_radius, 0., 0.);
-        glRotatef(Time * 360, 0., 1., 0.);
         write_text("Mercury");
         glScalef(mercury_diameter, mercury_diameter, mercury_diameter);
-        glRotatef(Time * 360 * self_rotate_speed/10., 0., 1., 0.);
+        glRotatef(Time * 360 * self_rotate_speed/59., 0., 1., 0.);
+
+        if (ViewFrom == 2){
+            PutCamera(modelMatrix1);
+        }
+
+        Pattern->SetUniformVariable("planet", 2);
         set_texture(mercury, mercury);
         glCallList(mercury_list);
     }
@@ -1058,13 +1232,24 @@ void DrawObjects() {
     //Draw Venus
     glPushMatrix();
     {
-        Transform("venus", mattemp);
+        glm::mat4 modelMatrix1 = modelMatrix;
+        Transform("venus", modelMatrix1);
+
+        modelMatrix1 = glm::rotate(modelMatrix1, D2R*orbital_speed(venus_orbital_radius), glm::vec3(0., 1., 0.));
+        modelMatrix1 = glm::translate(modelMatrix1, glm::vec3(orbit_radius_const*venus_orbital_radius, 0., 0.));
+        modelMatrix1 = glm::scale(modelMatrix1, glm::vec3(venus_diameter));
+
         glRotatef(orbital_speed(venus_orbital_radius), 0., 1., 0.);
         glTranslatef(orbit_radius_const*venus_orbital_radius, 0., 0.);
-        glRotatef(Time * 360, 0., 1., 0.);
         write_text("Venus");
         glScalef(venus_diameter, venus_diameter, venus_diameter);
-        glRotatef(Time * 360 * self_rotate_speed/5.0, 0., 1., 0.);
+        glRotatef(Time * 360 * self_rotate_speed/243.0, 0., 1., 0.);
+
+        if (ViewFrom == 3){
+            PutCamera(modelMatrix1);
+        }
+
+        Pattern->SetUniformVariable("planet", 3);
         set_texture(venus, venus);
         glCallList(venus_list);
     }
@@ -1073,13 +1258,24 @@ void DrawObjects() {
     //Draw Mars
     glPushMatrix();
     {
-        Transform("mars", mattemp);
+        glm::mat4 modelMatrix1 = modelMatrix;
+        Transform("mars", modelMatrix1);
+
+        modelMatrix1 = glm::rotate(modelMatrix1, D2R*orbital_speed(mars_orbital_radius), glm::vec3(0., 1., 0.));
+        modelMatrix1 = glm::translate(modelMatrix1, glm::vec3(orbit_radius_const*mars_orbital_radius, 0., 0.));
+        modelMatrix1 = glm::scale(modelMatrix1, glm::vec3(mars_diameter));
+
         glRotatef(orbital_speed(mars_orbital_radius), 0., 1., 0.);
         glTranslatef(orbit_radius_const*mars_orbital_radius, 0., 0.);
-        glRotatef(Time * 360, 0., 1., 0.);
         write_text("Mars");
         glScalef(mars_diameter, mars_diameter, mars_diameter);
-        glRotatef(Time * 360 * self_rotate_speed, 0., 1., 0.);
+        glRotatef(Time * 360 * self_rotate_speed*1.52, 0., 1., 0.);
+
+        if (ViewFrom == 5){
+            PutCamera(modelMatrix1);
+        }
+
+        Pattern->SetUniformVariable("planet", 5);
         set_texture(mars, mars);
         glCallList(mars_list);
     }
@@ -1093,7 +1289,6 @@ void DrawObjects() {
 
         modelMatrix1 = glm::rotate(modelMatrix1, D2R*orbital_speed(jupiter_orbital_radius), glm::vec3(0., 1., 0.));
         modelMatrix1 = glm::translate(modelMatrix1, glm::vec3(orbit_radius_const*jupiter_orbital_radius, 0., 0.));
-        modelMatrix1 = glm::rotate(modelMatrix1, D2R*Time * 360, glm::vec3(0., 1., 0.));
         modelMatrix1 = glm::scale(modelMatrix1, glm::vec3(jupiter_diameter));
 
         glRotatef(orbital_speed(jupiter_orbital_radius), 0., 1., 0.);
@@ -1101,11 +1296,13 @@ void DrawObjects() {
         glRotatef(Time * 360, 0., 1., 0.);
         write_text("Jupiter");
         glScalef(jupiter_diameter, jupiter_diameter, jupiter_diameter);
-        glRotatef(Time * 360 * self_rotate_speed, 0., 1., 0.);
+        glRotatef(Time * 360 * self_rotate_speed * 2.4, 0., 1., 0.);
 
-        if (WhichView == 3){
-            PutCamera(modelMatrix1, "jupiter");
+        if (ViewFrom == 6){
+            PutCamera(modelMatrix1);
         }
+
+        Pattern->SetUniformVariable("planet", 6);
 
         set_texture(jupiter, jupiter);
         glCallList(jupiter_list);
@@ -1121,7 +1318,6 @@ void DrawObjects() {
 
         modelMatrix1 = glm::rotate(modelMatrix1, D2R*orbital_speed(saturn_orbital_radius), glm::vec3(0., 1., 0.));
         modelMatrix1 = glm::translate(modelMatrix1, glm::vec3(orbit_radius_const*saturn_orbital_radius, 0., 0.));
-        modelMatrix1 = glm::rotate(modelMatrix1, D2R*Time * 360, glm::vec3(0., 1., 0.));
         modelMatrix1 = glm::scale(modelMatrix1, glm::vec3(saturn_diameter));
 
         glRotatef(orbital_speed(saturn_orbital_radius), 0., 1., 0.);
@@ -1132,12 +1328,13 @@ void DrawObjects() {
         glScalef(saturn_diameter, saturn_diameter, saturn_diameter);
         //add saturn ring here
         DrawRing(saturn_ring, 0.25, 0.4);
-        glRotatef(Time * 360 * self_rotate_speed, 0., 1., 0.);
+        glRotatef(Time * 360 * self_rotate_speed * 2.2, 0., 1., 0.);
 
-        if (WhichView == 4){
-            PutCamera(modelMatrix1, "saturn");
+        if (ViewFrom == 16 || ViewFrom == 7){
+            PutCamera(modelMatrix1);
         }
 
+        Pattern->SetUniformVariable("planet", 7);
         set_texture(saturn, saturn);
         glCallList(saturn_list);
     }
@@ -1146,7 +1343,12 @@ void DrawObjects() {
     //Draw Uranus
     glPushMatrix();
     {
-        Transform("uranus", mattemp);
+        glm::mat4 modelMatrix1 = modelMatrix;
+        Transform("uranus", modelMatrix1);
+
+        modelMatrix1 = glm::rotate(modelMatrix1, D2R*orbital_speed(uranus_orbital_radius), glm::vec3(0., 1., 0.));
+        modelMatrix1 = glm::translate(modelMatrix1, glm::vec3(orbit_radius_const*uranus_orbital_radius, 0., 0.));
+        modelMatrix1 = glm::scale(modelMatrix1, glm::vec3(uranus_diameter));
 
         glRotatef(orbital_speed(uranus_orbital_radius), 0., 1., 0.);
         glTranslatef(orbit_radius_const*uranus_orbital_radius, 0., 0.);
@@ -1154,8 +1356,13 @@ void DrawObjects() {
         write_text("Uranus");
         glScalef(uranus_diameter, uranus_diameter, uranus_diameter);
         DrawRing(uranus_ring, 0.25, 0.3);
-        glRotatef(Time * 360 * self_rotate_speed, 0., 1., 0.);
+        glRotatef(-Time * 360 * self_rotate_speed*1.39, 1., 0., 0.);
 
+        if (ViewFrom == 8){
+            PutCamera(modelMatrix1);
+        }
+
+        Pattern->SetUniformVariable("planet", 8);
         set_texture(uranus, uranus);
         glCallList(uranus_list);
     }
@@ -1169,7 +1376,6 @@ void DrawObjects() {
 
         modelMatrix1 = glm::rotate(modelMatrix1, D2R*orbital_speed(neptune_orbital_radius), glm::vec3(0., 1., 0.));
         modelMatrix1 = glm::translate(modelMatrix1, glm::vec3(orbit_radius_const*neptune_orbital_radius, 0., 0.));
-        modelMatrix1 = glm::rotate(modelMatrix1, D2R*Time * 360, glm::vec3(0., 1., 0.));
         modelMatrix1 = glm::scale(modelMatrix1, glm::vec3(neptune_diameter));
 
         glRotatef(orbital_speed(neptune_orbital_radius), 0., 1., 0.);
@@ -1177,12 +1383,13 @@ void DrawObjects() {
         glRotatef(Time * 360, 0., 1., 0.);
         write_text("Neptune");
         glScalef(neptune_diameter, neptune_diameter, neptune_diameter);
-        glRotatef(Time * 360 * self_rotate_speed, 0., 1., 0.);
+        glRotatef(Time * 360 * self_rotate_speed * 1.49, 0., 1., 0.);
 
-        if (WhichView == 5){
-            PutCamera(modelMatrix1, "neptune");
+        if (ViewFrom == 9){
+            PutCamera(modelMatrix1);
         }
 
+        Pattern->SetUniformVariable("planet", 9);
         set_texture(neptune, neptune);
         glCallList(neptune_list);
     }
@@ -1196,7 +1403,6 @@ void DrawObjects() {
 
         modelMatrix1 = glm::rotate(modelMatrix1, D2R*orbital_speed(pluto_orbital_radius), glm::vec3(0., 1., 0.));
         modelMatrix1 = glm::translate(modelMatrix1, glm::vec3(orbit_radius_const*pluto_orbital_radius, 0., 0.));
-        modelMatrix1 = glm::rotate(modelMatrix1, D2R*Time * 360, glm::vec3(0., 1., 0.));
         modelMatrix1 = glm::scale(modelMatrix1, glm::vec3(pluto_diameter));
 
         glRotatef(orbital_speed(pluto_orbital_radius), 0., 1., 0.);
@@ -1204,12 +1410,13 @@ void DrawObjects() {
         glRotatef(Time * 360, 0., 1., 0.);
         write_text("Pluto");
         glScalef(pluto_diameter, pluto_diameter, pluto_diameter);
-        glRotatef(Time * 360 * self_rotate_speed, 0., 1., 0.);
+        glRotatef(-Time * 360 * self_rotate_speed*0.16, 1., 0., 0.);
 
-        if (WhichView == 6){
-            PutCamera(modelMatrix1, "pluto");
+        if (ViewFrom == 10){
+            PutCamera(modelMatrix1);
         }
 
+        Pattern->SetUniformVariable("planet", 10);
         set_texture(pluto, pluto);
         glCallList(pluto_list);
     }
@@ -1224,7 +1431,6 @@ void DrawObjects() {
 
         modelMatrix1 = glm::rotate(modelMatrix1, D2R*orbital_speed(comet_orbital_radius), glm::vec3(0., 1., 0.));
         modelMatrix1 = glm::translate(modelMatrix1, glm::vec3(orbit_radius_const*comet_orbital_radius, 0., 0.));
-        modelMatrix1 = glm::rotate(modelMatrix1, D2R*Time * 360, glm::vec3(0., 1., 0.));
         modelMatrix1 = glm::scale(modelMatrix1, glm::vec3(comet_diameter));
 
         glRotatef(orbital_speed(comet_orbital_radius), 0., 1., 0.);
@@ -1232,12 +1438,13 @@ void DrawObjects() {
         glRotatef(Time * 360, 0., 1., 0.);
         write_text("Comet 67P");
         glScalef(comet_diameter, comet_diameter, comet_diameter);
-        glRotatef(Time * 360 * self_rotate_speed/30., 0., 1., 0.);
+        glRotatef(Time*360.*self_rotate_speed*0.5, 0., 1., 0.);
 
-        if (WhichView == 7){
-            PutCamera(modelMatrix1, "comet");
+        if (ViewFrom == 12 || ViewFrom == 17){
+            PutCamera(modelMatrix1);
         }
 
+        Pattern->SetUniformVariable("planet", 12);
         set_texture(moon, moon);
         obj.Draw();
     }
@@ -1312,12 +1519,8 @@ DoDepthMenu(int id) {
 
 void DoViewMenu(int id) {
 
-    WhichView = id;
-    if (WhichView == 2){
-        orbital_speed_constant = 10;
-    } else {
-        orbital_speed_constant = 100;
-    }
+    ViewFrom = id;
+    AdjustParam();
 
     glutSetWindow(MainWindow);
     glutPostRedisplay();
@@ -1397,6 +1600,7 @@ DoMainMenu(int id) {
             // gracefully close the graphics window:
             // gracefully exit the program:
             obj.Release();
+            delete(Pattern);
             system("killall afplay");
             glutSetWindow(MainWindow);
             glFinish();
@@ -1431,6 +1635,16 @@ DoProjectMenu(int id) {
 void
 ShowInstructionsMenu(int id) {
     ShowInstructions = id;
+
+    glutSetWindow(MainWindow);
+    glutPostRedisplay();
+}
+
+void
+ShowInfoMenu(int id) {
+    ViewFrom = id;
+
+    orbital_speed_constant = 0;
 
     glutSetWindow(MainWindow);
     glutPostRedisplay();
@@ -1501,16 +1715,13 @@ InitMenus() {
     glutAddMenuEntry("On", 1);
 
     int viewmenu = glutCreateMenu(DoViewMenu);
-    glutAddMenuEntry("Sun", 0);
-    glutAddMenuEntry("Earth", 1);
-    glutAddMenuEntry("Moon", 2);
-    glutAddMenuEntry("Jupiter", 3);
-    glutAddMenuEntry("Saturn", 4);
-    glutAddMenuEntry("Neptune", 5);
-    glutAddMenuEntry("Pluto", 6);
-    glutAddMenuEntry("Comet", 7);
-    glutAddMenuEntry("Near View", 8);
-    glutAddMenuEntry("Overall View", 9);
+    glutAddMenuEntry("Sun", 13);
+    glutAddMenuEntry("Moon", 14);
+    glutAddMenuEntry("Earth", 15);
+    glutAddMenuEntry("Saturn", 16);
+    glutAddMenuEntry("Comet", 17);
+    glutAddMenuEntry("Near View", 18);
+    glutAddMenuEntry("Overall View", 19);
 
     int texturemenu = glutCreateMenu(DoTextureMenu);
     glutAddMenuEntry("ON", 1);
@@ -1533,8 +1744,22 @@ InitMenus() {
     glutAddMenuEntry("Stop", 0);
 
     int showintructionmenu = glutCreateMenu(ShowInstructionsMenu);
-    glutAddMenuEntry("Play", 1);
-    glutAddMenuEntry("Stop", 0);
+    glutAddMenuEntry("ON", 1);
+    glutAddMenuEntry("OFF", 0);
+
+    int showinfomenu = glutCreateMenu(ShowInfoMenu);
+    glutAddMenuEntry("Sun", 1);
+    glutAddMenuEntry("Mercury", 2);
+    glutAddMenuEntry("Venus", 3);
+    glutAddMenuEntry("Earth", 4);
+    glutAddMenuEntry("Mars", 5);
+    glutAddMenuEntry("Jupiter", 6);
+    glutAddMenuEntry("Saturn", 7);
+    glutAddMenuEntry("Uranus", 8);
+    glutAddMenuEntry("Neptune", 9);
+    glutAddMenuEntry("Pluto", 10);
+    glutAddMenuEntry("Moon", 11);
+    glutAddMenuEntry("Comet", 12);
 
     int mainmenu = glutCreateMenu(DoMainMenu);
     glutAddSubMenu("Show Orbits", texturemenu);
@@ -1543,6 +1768,7 @@ InitMenus() {
     glutAddSubMenu("Play Sound", playsoundhmenu);
     glutAddSubMenu("Show Planets' names", showearthmenu);
     glutAddSubMenu("Show Instructions", showintructionmenu);
+    glutAddSubMenu("Information About", showinfomenu);
     glutAddSubMenu("View From", viewmenu);
     glutAddMenuEntry("Reset", RESET);
     glutAddSubMenu("Debug", debugmenu);
@@ -1695,6 +1921,7 @@ InitGraphics() {
 
     Pattern = new GLSLProgram( );
     bool valid = Pattern->Create( "pattern.vert",  "pattern.frag" );
+//    bool valid = Pattern->Create2( "pattern.vert",  "pattern.frag", NULL);
     if( ! valid )
     {
         fprintf( stderr, "Shader cannot be created!\n" );
@@ -1802,7 +2029,9 @@ Keyboard(unsigned char c, int x, int y) {
         case ESCAPE:
             DoMainMenu(QUIT);    // will not return here
             break;                // happy compiler
-
+        case 13: //Enter
+            Voyage = !Voyage;
+            break;
         case 'o':
         case 'O':
             ScaleOrbitOn = !ScaleOrbitOn;
@@ -1847,55 +2076,86 @@ Keyboard(unsigned char c, int x, int y) {
                 glutIdleFunc(Animate);
             break;
 
-        case '0':
-            WhichView = 0;
-            break;
-
         case '1':
-            WhichView = 1;
+            ViewFrom = 1;
             break;
-
         case '2':
-            WhichView = 2;
+            ViewFrom = 2;
             break;
         case '3':
-            WhichView = 3;
+            ViewFrom = 3;
             break;
         case '4':
-            WhichView = 4;
+            ViewFrom = 4;
             break;
         case '5':
-            WhichView = 5;
+            ViewFrom = 5;
             break;
         case '6':
-            WhichView = 6;
+            ViewFrom = 6;
             break;
         case '7':
-            WhichView = 7;
+            ViewFrom = 7;
             break;
         case '8':
-            WhichView = 8;
+            ViewFrom = 8;
             break;
         case '9':
-            WhichView = 9;
+            ViewFrom = 9;
             break;
-
+        case 'p':
+        case 'P':
+            ViewFrom = 10;
+            break;
+        case 'x':
+        case 'X':
+            ViewFrom = 11;
+            break;
+        case 'c':
+        case 'C':
+            ViewFrom = 12;
+            break;
+        case 'u':
+        case 'U':
+            ViewFrom = 13;
+            break;
+        case 'm':
+        case 'M':
+            ViewFrom = 14;
+            break;
+        case 'e':
+        case 'E':
+            ViewFrom = 15;
+            break;
+        case 'a':
+        case 'A':
+            ViewFrom = 16;
+            break;
+        case 't':
+        case 'T':
+            ViewFrom = 17;
+            break;
+        case 'i':
+        case 'I':
+            ViewFrom = 18;
+            break;
+        case 'v':
+        case 'V':
+            ViewFrom = 19;
+            break;
 
         default:
             fprintf(stderr, "Don't know what to do with keyboard hit: '%c' (0x%0x)\n", c, c);
     }
 
-    if (WhichView == 2){
-        orbital_speed_constant = 10;
-    } else {
-        orbital_speed_constant = 100;
-    }
+    AdjustParam();
 
     // force a call to Display( ):
 
     glutSetWindow(MainWindow);
     glutPostRedisplay();
 }
+
 
 
 void
@@ -2024,7 +2284,8 @@ Reset() {
     ActiveButton = 0;
     show_planet_names = 1;
     PlaySound = 1;
-    Orbit_On = 1;
+    Voyage = 1;
+    Orbit_On = 0;
     AxesOn = 0;
     DebugOn = 0;
     DepthCueOn = 0;
@@ -2032,22 +2293,18 @@ Reset() {
     Scale = 1.0;
     Distort = 0;
     WhichColor = WHITE;
-    WhichProjection = PERSP;
-    WhichView = 7;
+    ViewFrom = 19;
     ScaleDiameterOn = 1;
     Xrot = Yrot = 0.;
 
-    if (WhichView < 8) { // Not near view and overall view
+
+    if (ViewFrom < 18) { // Not near view and overall view
         self_rotate_speed = 10;
     } else {
         self_rotate_speed = 100;
     }
 
-    if (WhichView == 2) { // Moon
-        orbital_speed_constant = 10;
-    } else {
-        orbital_speed_constant = 100;
-    }
+    AdjustParam();
 }
 
 
