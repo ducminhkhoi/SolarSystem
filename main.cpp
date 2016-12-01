@@ -574,6 +574,7 @@ Display() {
     }
 
     if (Voyage == 1){
+        int previous_ViewFrom = ViewFrom;
         if (isDoingVoyage == 0) { // Start if not run
             isDoingVoyage = 1;
             StartTime = current_time;
@@ -618,6 +619,11 @@ Display() {
             ViewFrom = 18;
             isDoingVoyage = 0;
             Voyage = 0;
+        }
+
+        if (previous_ViewFrom != ViewFrom){ //change new View From, reset View
+            Xrot = Yrot = 0.;
+            Scale = 1.0;
         }
 
         AdjustParam();
@@ -1520,6 +1526,9 @@ DoDepthMenu(int id) {
 void DoViewMenu(int id) {
 
     ViewFrom = id;
+    Xrot = Yrot = 0.;
+    Scale = 1.0;
+
     AdjustParam();
 
     glutSetWindow(MainWindow);
@@ -1643,6 +1652,8 @@ ShowInstructionsMenu(int id) {
 void
 ShowInfoMenu(int id) {
     ViewFrom = id;
+    Xrot = Yrot = 0.;
+    Scale = 1.0;
 
     orbital_speed_constant = 0;
 
@@ -1920,8 +1931,8 @@ InitGraphics() {
 #endif
 
     Pattern = new GLSLProgram( );
-    bool valid = Pattern->Create( "pattern.vert",  "pattern.frag" );
-//    bool valid = Pattern->Create2( "pattern.vert",  "pattern.frag", NULL);
+//    bool valid = Pattern->Create( "pattern.vert",  "pattern.frag" );
+    bool valid = Pattern->Create2( "pattern.vert",  "pattern.frag", NULL);
     if( ! valid )
     {
         fprintf( stderr, "Shader cannot be created!\n" );
@@ -2022,6 +2033,7 @@ void
 Keyboard(unsigned char c, int x, int y) {
     if (DebugOn != 0)
         fprintf(stderr, "Keyboard: '%c' (0x%0x)\n", c, c);
+    int previous_ViewFrom = ViewFrom;
 
     switch (c) {
         case 'q':
@@ -2146,6 +2158,11 @@ Keyboard(unsigned char c, int x, int y) {
 
         default:
             fprintf(stderr, "Don't know what to do with keyboard hit: '%c' (0x%0x)\n", c, c);
+    }
+
+    if (previous_ViewFrom != ViewFrom) {//change view from, reset view to normal
+        Xrot = Yrot = 0.;
+        Scale = 1.0;
     }
 
     AdjustParam();
@@ -2290,12 +2307,12 @@ Reset() {
     DebugOn = 0;
     DepthCueOn = 0;
     ScaleOrbitOn = 1;
-    Scale = 1.0;
     Distort = 0;
     WhichColor = WHITE;
     ViewFrom = 19;
     ScaleDiameterOn = 1;
     Xrot = Yrot = 0.;
+    Scale = 1.0;
 
 
     if (ViewFrom < 18) { // Not near view and overall view
